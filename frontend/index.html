@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AccountingAI Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 1200px; margin: 0 auto; background-color: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #333; }
+        .section { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; }
+        input[type="text"], input[type="file"], select, textarea { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        #chatOutput { border: 1px solid #ddd; padding: 10px; height: 300px; overflow-y: auto; background-color: #fff; }
+        .api-key { display: flex; align-items: center; }
+        .api-key input { flex-grow: 1; margin-right: 10px; }
+        .combo-card { background-color: #f4f4f4; padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        /* Sidebar styles */
+        .sidebar {
+            height: 100%;
+            width: 0;
+            position: fixed;
+            z-index: 1;
+            top: 0;
+            left: 0;
+            background-color: #111;
+            overflow-x: hidden;
+            transition: 0.5s;
+            padding-top: 60px;
+        }
+        .sidebar a {
+            padding: 8px 8px 8px 32px;
+            text-decoration: none;
+            font-size: 25px;
+            color: #818181;
+            display: block;
+            transition: 0.3s;
+        }
+        .sidebar a:hover {
+            color: #f1f1f1;
+        }
+        .sidebar .closebtn {
+            position: absolute;
+            top: 0;
+            right: 25px;
+            font-size: 36px;
+            margin-left: 50px;
+        }
+        .openbtn {
+            font-size: 20px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+        }
+        .openbtn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+<div id="mySidebar" class="sidebar">
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+    <div id="savedPromptCombinations"></div>
+</div>
+
+<div class="container">
+    <h1>AccountingAI Tool</h1>
+    <button class="openbtn" onclick="openNav()">&#9776; View Saved Prompts</button>
+    <div class="section">
+        <h2>API Keys</h2>
+        <div class="api-key">
+            <input type="text" id="openaiKey" placeholder="OpenAI API Key">
+            <button onclick="saveApiKey('openai')">Save</button>
+        </div>
+        <div class="api-key">
+            <input type="text" id="hfApiKey" placeholder="Hugging Face API Key">
+            <button onclick="saveApiKey('huggingface')">Save</button>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>File Upload</h2>
+        <input type="file" id="fileUpload" multiple>
+        <button onclick="uploadFiles()">Upload Files</button>
+    </div>
+    
+    <div class="section">
+        <h2>Prompts and Variables</h2>
+        <label for="globalSystemPrompt">Global System Prompt:</label>
+        <textarea id="globalSystemPrompt" rows="3"></textarea>
+        
+        <label for="globalUserPrompt">Global User Prompt:</label>
+        <textarea id="globalUserPrompt" rows="3"></textarea>
+        
+        <label for="localSystemPrompt">Local System Prompt:</label>
+        <textarea id="localSystemPrompt" rows="3"></textarea>
+        
+        <label for="localUserPrompt">Local User Prompt:</label>
+        <textarea id="localUserPrompt" rows="3"></textarea>
+        
+        <button onclick="openModal()">Save Prompt Combination</button>
+        
+        <label for="variables">Variables (JSON format):</label>
+        <textarea id="variables" rows="3" placeholder='{"key": "value"}'></textarea>
+    </div>
+    
+    <div class="section">
+        <h2>Custom Tools</h2>
+        <label for="toolSelect">Select Tool:</label>
+        <select id="toolSelect" onchange="updateToolSection()">
+            <option value="">None</option>
+            <option value="webSearch">Web Search</option>
+        </select>
+        <div id="toolSection"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Chat Interface</h2>
+        <select id="modelSelect">
+            <option value="openai">OpenAI GPT</option>
+            <option value="huggingface">Hugging Face Model</option>
+        </select>
+        <select id="hfModelName" style="display: none;">
+            <option value="gpt2">gpt2</option>
+            <option value="distilgpt2">distilgpt2</option>
+            <option value="gpt-neo-125M">gpt-neo-125M</option>
+            <option value="gpt-neo-1.3B">gpt-neo-1.3B</option>
+            <option value="gpt-neo-2.7B">gpt-neo-2.7B</option>
+            <option value="gpt-j-6B">gpt-j-6B</option>
+            <option value="opt-350m">opt-350m</option>
+            <option value="opt-1.3b">opt-1.3b</option>
+            <option value="opt-2.7b">opt-2.7b</option>
+            <option value="bloom-560m">bloom-560m</option>
+            <option value="bloom-1b1">bloom-1b1</option>
+            <option value="bloom-1b7">bloom-1b7</option>
+        </select>
+        <input type="text" id="userInput" placeholder="Type your message here">
+        <button onclick="sendMessage()">Send</button>
+        <div id="chatOutput"></div>
+    </div>
+</div>
+
+<div id="savePromptModal" style="display:none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Save Prompt Combination</h2>
+        <label for="comboName">Combination Name:</label>
+        <input type="text" id="comboName">
+        <label for="comboDescription">Combination Description:</label>
+        <textarea id="comboDescription" rows="3"></textarea>
+        <button onclick="savePromptCombination()">Save</button>
+    </div>
+</div>
+
+<script>
+    let tools = {};
+
+    function saveApiKey(provider) {
+        const key = document.getElementById(`${provider}Key`).value;
+        localStorage.setItem(`${provider}ApiKey`, key);
+        alert(`${provider.charAt(0).toUpperCase() + provider.slice(1)} API key saved!`);
+    }
+
+    async function uploadFiles() {
+        const fileInput = document.getElementById('fileUpload');
+        const files = fileInput.files;
+        const formData = new FormData();
+        for (let i = 0; i < files.length; i++) {
+            formData.append('files', files[i]);
+        }
+
+        try {
+            const response = await fetch('http://localhost:5000/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            alert(`${result.message}`);
+            // Store uploaded file names in local storage for use in the prompt
+            localStorage.setItem('uploadedFiles', JSON.stringify(result.files));
+        } catch (error) {
+            console.error('Error uploading files:', error);
+        }
+    }
+
+    function addTool() {
+        const name = document.getElementById('toolName').value;
+        const code = document.getElementById('toolCode').value;
+        if (name && code) {
+            tools[name] = code;
+            alert(`Tool "${name}" added successfully!`);
+        } else {
+            alert('Please provide both tool name and code.');
+        }
+    }
+
+    function validateJSON(jsonString) {
+        try {
+            const parsed = JSON.parse(jsonString);
+            return parsed;
+        } catch (e) {
+            alert('Invalid JSON format in variables.');
+            throw e;
+        }
+    }
+
+    document.getElementById('modelSelect').addEventListener('change', function() {
+        const hfModelSelect = document.getElementById('hfModelName');
+        if (this.value === 'huggingface') {
+            hfModelSelect.style.display = 'block';
+        } else {
+            hfModelSelect.style.display = 'none';
+        }
+    });
+
+    async function sendMessage() {
+        const model = document.getElementById('modelSelect').value;
+        const hfModelName = model === 'huggingface' ? document.getElementById('hfModelName').value : '';
+        const hfApiKey = localStorage.getItem('huggingfaceApiKey');
+        const userInput = document.getElementById('userInput').value;
+        const globalSystemPrompt = document.getElementById('globalSystemPrompt').value;
+        const globalUserPrompt = document.getElementById('globalUserPrompt').value;
+        const localSystemPrompt = document.getElementById('localSystemPrompt').value;
+        const localUserPrompt = document.getElementById('localUserPrompt').value;
+        const variablesText = document.getElementById('variables').value;
+
+        let variables = {};
+        if (variablesText.trim() !== '') {
+            variables = validateJSON(variablesText);
+        }
+
+        // Get uploaded file names from local storage
+        const uploadedFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
+
+        const selectedTool = document.getElementById('toolSelect').value;
+        const webSearchQuery = selectedTool === 'webSearch' ? document.getElementById('webSearchQuery').value : '';
+
+        const data = {
+            model,
+            hfModelName,
+            hfApiKey,
+            userInput,
+            globalSystemPrompt,
+            globalUserPrompt,
+            localSystemPrompt,
+            localUserPrompt,
+            variables,
+            tools,
+            uploadedFiles,
+            selectedTool,
+            webSearchQuery
+        };
+
+        try {
+            const response = await fetch('http://localhost:5000/process', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            appendToChatOutput(userInput, result.response);
+        } catch (error) {
+            console.error('Error sending message:', error);
+        }
+    }
+
+    function appendToChatOutput(input, response) {
+        const chatOutput = document.getElementById('chatOutput');
+        chatOutput.innerHTML += `<p><strong>You:</strong> ${input}</p>`;
+        chatOutput.innerHTML += `<p><strong>AI:</strong> ${response}</p>`;
+        chatOutput.scrollTop = chatOutput.scrollHeight;
+    }
+
+    async function savePromptCombination() {
+        const globalSystemPrompt = document.getElementById('globalSystemPrompt').value;
+        const globalUserPrompt = document.getElementById('globalUserPrompt').value;
+        const localSystemPrompt = document.getElementById('localSystemPrompt').value;
+        const localUserPrompt = document.getElementById('localUserPrompt').value;
+        const comboName = document.getElementById('comboName').value;
+        const comboDescription = document.getElementById('comboDescription').value;
+
+        const promptCombination = {
+            name: comboName,
+            description: comboDescription,
+            global_system_prompt: globalSystemPrompt,
+            global_user_prompt: globalUserPrompt,
+            local_system_prompt: localSystemPrompt,
+            local_user_prompt: localUserPrompt
+        };
+
+        try {
+            const response = await fetch('http://localhost:5000/save_prompt_combination', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(promptCombination)
+            });
+            const result = await response.json();
+            alert(result.message);
+            closeModal();
+            loadSavedPromptCombinations(); // Reload the saved prompt combinations
+        } catch (error) {
+            console.error('Error saving prompt combination:', error);
+        }
+    }
+
+    async function loadSavedPromptCombinations() {
+        try {
+            const response = await fetch('http://localhost:5000/load_saved_prompt_combinations');
+            const promptCombinations = await response.json();
+            updateSidebar(promptCombinations);
+        } catch (error) {
+            console.error('Error loading saved prompt combinations:', error);
+        }
+    }
+
+    function updateSidebar(promptCombinations) {
+        const sidebar = document.getElementById('savedPromptCombinations');
+        sidebar.innerHTML = '';
+        promptCombinations.forEach((combo, index) => {
+            const comboCard = `
+                <div class="combo-card">
+                    <h3>${combo.name}</h3>
+                    <p>${combo.description}</p>
+                    <button onclick="loadPromptCombination(${index})">Load</button>
+                </div>
+            `;
+            sidebar.innerHTML += comboCard;
+        });
+        localStorage.setItem('savedPromptCombinations', JSON.stringify(promptCombinations));
+    }
+
+    function loadPromptCombination(index) {
+        const promptCombinations = JSON.parse(localStorage.getItem('savedPromptCombinations'));
+        if (promptCombinations && promptCombinations[index]) {
+            const combo = promptCombinations[index];
+            document.getElementById('globalSystemPrompt').value = combo.global_system_prompt;
+            document.getElementById('globalUserPrompt').value = combo.global_user_prompt;
+            document.getElementById('localSystemPrompt').value = combo.local_system_prompt;
+            document.getElementById('localUserPrompt').value = combo.local_user_prompt;
+        }
+    }
+
+    function openModal() {
+        document.getElementById('savePromptModal').style.display = 'block';
+    }
+
+    function closeModal() {
+        document.getElementById('savePromptModal').style.display = 'none';
+    }
+
+    function openNav() {
+        document.getElementById("mySidebar").style.width = "250px";
+    }
+
+    function closeNav() {
+        document.getElementById("mySidebar").style.width = "0";
+    }
+
+    function updateToolSection() {
+        const toolSection = document.getElementById('toolSection');
+        const selectedTool = document.getElementById('toolSelect').value;
+        toolSection.innerHTML = '';
+        if (selectedTool === 'webSearch') {
+            toolSection.innerHTML = `
+                <label for="webSearchQuery">Web Search Query:</label>
+                <input type="text" id="webSearchQuery">
+                <button onclick="searchWeb()">Search</button>
+            `;
+        }
+    }
+
+    // Load saved prompt combinations on page load
+    window.onload = loadSavedPromptCombinations;
+</script>
+</body>
+</html>
